@@ -1,8 +1,22 @@
 const csv = require('fast-csv');
 const sequelize = require('sequelize');
 const moment = require('moment');
+const MongoClient = require('mongodb').MongoClient;
+
 var sourceData = [];
 var validData = [];
+
+
+// replace the uri string with your connection string.
+const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/test?retryWrites=true"
+MongoClient.connect(uri, function(err, client) {
+   if(err) {
+        console.log('Error occurred while connecting to MongoDB Atlas...\n',err);
+   }
+   console.log('Connected...');
+   const collection = client.db("coindesk").collection("challenge");
+   client.close();
+});
 
 function dataIngestion(){
   csv
@@ -25,7 +39,11 @@ function dataCleaning(){
         sourceData[i].createdAt = moment(moment(date, "YYYYMMMDDHH:mm:ss")).format('YYYY-MM-DD HH:mm:ss');
         validData = sourceData[i];
       }
+  createModel();
 }
+
+function createModel(){
+
 
 
 
