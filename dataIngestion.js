@@ -1,5 +1,4 @@
 const csv = require('fast-csv');
-const sequelize = require('sequelize');
 const moment = require('moment');
 const MongoClient = require('mongodb').MongoClient;
 
@@ -7,18 +6,9 @@ var sourceData = [];
 var validData = [];
 
 
-// replace the uri string with your connection string.
-const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/test?retryWrites=true"
-MongoClient.connect(uri, function(err, client) {
-   if(err) {
-        console.log('Error occurred while connecting to MongoDB Atlas...\n',err);
-   }
-   console.log('Connected...');
-   const collection = client.db("coindesk").collection("challenge");
-   client.close();
-});
 
 function dataIngestion(){
+  //CSV data ingestion
   csv
    .fromPath('testData-1539286153057.csv', {headers: true})
    .on('data', (data) =>
@@ -31,20 +21,37 @@ function dataIngestion(){
 }
 
 function dataCleaning(){
-  for (var i = 0; i < sourceData.length; i++) {
-      if(sourceData[i].data != '' &&
-         sourceData[i].data > 0)
+  //filter invalid records
+  sourceData = sourceData.filter( i => i.data != '' && i.data > 0);
+  //timestamp conversion
+   for (var i = 0; i < sourceData.length; i++) {
         parts = sourceData[i].createdAt.split(' ');
         date = parts[3] + parts[1] + parts[2] + parts[4] + parts[0];
         sourceData[i].createdAt = moment(moment(date, "YYYYMMMDDHH:mm:ss")).format('YYYY-MM-DD HH:mm:ss');
-        validData = sourceData[i];
-      }
-  createModel();
+        validData[i] = sourceData[i];
+     }
+    console.log(validData.length + " records loaded");
+  //insertMongo(); 
 }
 
-function createModel(){
 
-
+//insert data into mongodb
+function insertMongo(){
+  const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/test?retryWrites=true"
+  MongoClient.connect(uri, function(err, client) {
+     if(err) {
+          console.log('Error occurred while connecting to MongoDB Atlas...\n',err);
+     }
+     console.log('Connected...');
+     var db = client.db("coindesk");
+     //console.log(validData[0]);
+     try
+       {
+         db.collection("coincap").insertMany(validData);
+     } catch(e) { console.log(e); };
+     client.close();
+  });
+}
 
 
 dataIngestion();
