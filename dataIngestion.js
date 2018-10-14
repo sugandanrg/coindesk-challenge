@@ -1,10 +1,12 @@
 const csv = require('fast-csv');
 const moment = require('moment');
-const MongoClient = require('mongodb').MongoClient;
+const mongoose = require('mongoose');
+const mData = require('./models/mData.js');
 
 var sourceData = [];
 var validData = [];
-
+var test = [];
+const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
 
 
 function dataIngestion(){
@@ -26,35 +28,59 @@ function dataCleaning(){
   //timestamp conversion
    for (var i = 0; i < sourceData.length; i++) {
         parts = sourceData[i].createdAt.split(' ');
-        date = parts[3] + parts[1] + parts[2] + parts[4] + parts[0];
-        sourceData[i].createdAt = moment(moment(date, "YYYYMMMDDHH:mm:ss")).format('YYYY-MM-DD HH:mm:ss');
+        date = parts[3] + parts[1] + parts[2] + parts[0];
+        time = parts[4];
+        sourceData[i].createdAt_date = moment(moment(date, "YYYYMMMDD ddd")).format('YYYY-MM-DD ddd');
+        sourceData[i].createdAt_time = moment(moment(time, "HH:mm:ss")).format('HH:mm:ss');
         validData[i] = sourceData[i];
      }
     console.log(validData.length + " records loaded");
-  //insertMongo(); 
+  //insertMongo();
+  createModel();
+}
+
+function createModel(){
+  mongoose.connect(uri);
+  for(var i = 0; i < validData.length; i++)
+    mData.create(validData[i]);
+  console.log("Load complete!");
 }
 
 
+dataIngestion();
+
+/*
 //insert data into mongodb
 function insertMongo(){
-  const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/test?retryWrites=true"
   MongoClient.connect(uri, function(err, client) {
      if(err) {
           console.log('Error occurred while connecting to MongoDB Atlas...\n',err);
      }
      console.log('Connected...');
      var db = client.db("coindesk");
-     //console.log(validData[0]);
      try
        {
-         db.collection("coincap").insertMany(validData);
+         db.collection("stage").drop();
+         db.collection("stage").insertMany(validData);
      } catch(e) { console.log(e); };
-     client.close();
+     try
+       {
+          test = db.collection("stage").aggregate(
+           [
+             {$group: {_id: {$FactorConfigId: "$FactorConfigId", $createdAt_date: "$createdAt_date" }}},
+             {$sort: {id: 1}}
+           ]
+       );
+       console.log(test);
+     } catch(e) { console.log(e); };
+     //client.close();
   });
 }
 
+*/
 
-dataIngestion();
+
+
 
 
 
