@@ -34,9 +34,6 @@ function dataCleaning(){
         sourceData[i].createdAt = new Date(sourceData[i].createdAt);
         validData[i] = sourceData[i];
      }
-     data123 = moment(sourceData[0].createdAt).format('YYYY-MM-DD');
-     console.log(data123);
-     console.log(typeof(data123));
   createStageModel();
 }
 
@@ -60,12 +57,12 @@ function dataTransformation(){
         $group: {
           _id: {
             FactorConfigId: '$FactorConfigId',
-            createdAt: moment('$createdAt').format('YYYY-MM-DD')
+            createdAt: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
           },
           id: {$max: "$id"},
           data: {$max: "$data"},
           FactorConfigId: {$max: "$FactorConfigId"},
-          createdAt: {$max: moment('$createdAt').format('YYYY-MM-DD')}
+          createdAt: {$max: "$createdAt"}
         }
       },
       { $project: {_id: 0} },
@@ -78,9 +75,8 @@ function dataTransformation(){
       coinData.collection.insertMany(result)
       .then( function(res) {
         console.log("EXPECTED DATA: " + result.length + " records loaded");
-        //closeMongoDBConn();
-        stageData.collection.drop();
-        mongoose.connection.close();
+        stageData.collection.drop(); //drop staged collection
+        mongoose.connection.close(); //closeMongoDBConn();
       })
       .catch(function(err){
         console.log(err);
