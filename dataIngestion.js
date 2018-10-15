@@ -1,11 +1,11 @@
 const csv = require('fast-csv');
 const moment = require('moment');
 const mongoose = require('mongoose');
-const mData = require('./models/mData.js');
+const stageData = require('./models/stageData.js');
+const coinData = require('./models/coinData.js');
 
 var sourceData = [];
 var validData = [];
-var test = [];
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
 
 
@@ -35,15 +35,45 @@ function dataCleaning(){
         validData[i] = sourceData[i];
      }
     console.log(validData.length + " records loaded");
-  //insertMongo();
   createModel();
 }
 
 function createModel(){
   mongoose.connect(uri);
-  for(var i = 0; i < validData.length; i++)
-    mData.create(validData[i]);
-  console.log("Load complete!");
+  stageData.collection.insert(validData, function(err, res) {
+    if(err){ console.log(err);}
+    console.log("loaded successfully -> " + res);
+    dataTransformation();
+  });
+}
+
+function dataTransformation(){
+    stageData.aggregate([
+      {
+        $group: {
+          _id: {
+            FactorConfigId: '$FactorConfigId',
+            createdAt_date: '$createdAt_date'
+          },
+          id: {$max: "$id"},
+          data: {$max: "$data"},
+          FactorConfigId: {$max: "$FactorConfigId"},
+          createdAt: {$max: "$createdAt"},
+          createdAt_time: {$max: "$createdAt_time"}
+        }
+      },
+      { $project: {_id: 0} },
+      { $sort: { id: 1, FactorConfigId: 1 } },
+    ], function(err, result){
+      if (err) {
+        console.log(err); return;
+      }
+      coinData.collection.insert(result, function(err, res) {
+        if(err){ console.log(err);}
+        console.log("Loaded successfully -> " + result.length);
+        mongoose.connection.close();
+      });
+    });
 }
 
 
@@ -78,7 +108,6 @@ function insertMongo(){
 }
 
 */
-
 
 
 
