@@ -12,13 +12,7 @@ const stage = new Schema({
     type: Number
   },
   createdAt: {
-    type: String
-  },
-  createdAt_date:{
-    type: String
-  },
-  createdAt_time:{
-    type: String
+    type: Date
   }
 });
 

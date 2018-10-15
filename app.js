@@ -8,7 +8,7 @@ var sourceData = [];
 var validData = [];
 //mongoDB connection string
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
-
+mongoose.Promise = global.Promise;
 
 function dataIngestion(){
   //CSV data ingestion
@@ -28,17 +28,21 @@ function dataCleaning(){
   sourceData = sourceData.filter( i => i.data != '' && i.data > 0);
   //separate date and time to faciltate
    for (var i = 0; i < sourceData.length; i++) {
-        parts = sourceData[i].createdAt.split(' ');
-        date = parts[3] + parts[1] + parts[2] + parts[0];
-        time = parts[4];
-        sourceData[i].createdAt_date = moment(moment(date, "YYYYMMMDD ddd")).format('YYYY-MM-DD ddd');
-        sourceData[i].createdAt_time = moment(moment(time, "HH:mm:ss")).format('HH:mm:ss');
+        sourceData[i].id = Number(sourceData[i].id);
+        sourceData[i].data = Number(sourceData[i].data);
+        sourceData[i].FactorConfigId = Number(sourceData[i].FactorConfigId);
+        sourceData[i].createdAt = new Date(sourceData[i].createdAt);
         validData[i] = sourceData[i];
      }
-  createModel();
+     data123 = moment(sourceData[0].createdAt).format('YYYY-MM-DD');
+     console.log(data123);
+     console.log(typeof(data123));
+  createStageModel();
 }
 
-function createModel(){
+//Thu Oct 11 2018 09:51:24 GMT-0400 (EDT)
+
+function createStageModel(){
   //connect to mongoDB
   mongoose.connect(uri);
   //create a collection of valid data
@@ -56,14 +60,12 @@ function dataTransformation(){
         $group: {
           _id: {
             FactorConfigId: '$FactorConfigId',
-            createdAt_date: '$createdAt_date'
+            createdAt: moment('$createdAt').format('YYYY-MM-DD')
           },
           id: {$max: "$id"},
           data: {$max: "$data"},
           FactorConfigId: {$max: "$FactorConfigId"},
-          createdAt: {$max: "$createdAt"},
-          createdAt_date: {$max: "$createdAt_date"},
-          createdAt_time: {$max: "$createdAt_time"}
+          createdAt: {$max: moment('$createdAt').format('YYYY-MM-DD')}
         }
       },
       { $project: {_id: 0} },
@@ -73,14 +75,19 @@ function dataTransformation(){
         console.log(err); return;
       }
       //create a collection of transformed data
-      coinData.collection.insert(result, function(err, res) {
-        if(err){ console.log(err);}
+      coinData.collection.insertMany(result)
+      .then( function(res) {
         console.log("EXPECTED DATA: " + result.length + " records loaded");
-        //close mongoDB connection
+        //closeMongoDBConn();
+        stageData.collection.drop();
         mongoose.connection.close();
+      })
+      .catch(function(err){
+        console.log(err);
       });
     });
 }
+
 
 //data flow starts here
 dataIngestion();
