@@ -6,6 +6,7 @@ const coinData = require('./models/coinData.js');
 
 var sourceData = [];
 var validData = [];
+//mongoDB connection string
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
 
 
@@ -17,7 +18,7 @@ function dataIngestion(){
      sourceData.push(data)
    )
    .on('end', () => {
-   console.log(sourceData.length + " records loaded");
+   console.log("RAW DATA: " + sourceData.length + " records loaded");
    dataCleaning();
    });
 }
@@ -25,7 +26,7 @@ function dataIngestion(){
 function dataCleaning(){
   //filter invalid records
   sourceData = sourceData.filter( i => i.data != '' && i.data > 0);
-  //timestamp conversion
+  //separate date and time to faciltate
    for (var i = 0; i < sourceData.length; i++) {
         parts = sourceData[i].createdAt.split(' ');
         date = parts[3] + parts[1] + parts[2] + parts[0];
@@ -34,20 +35,22 @@ function dataCleaning(){
         sourceData[i].createdAt_time = moment(moment(time, "HH:mm:ss")).format('HH:mm:ss');
         validData[i] = sourceData[i];
      }
-    console.log(validData.length + " records loaded");
   createModel();
 }
 
 function createModel(){
+  //connect to mongoDB
   mongoose.connect(uri);
-  stageData.collection.insert(validData, function(err, res) {
+  //create a collection of valid data
+  stageData.collection.insertMany(validData, function(err, res) {
     if(err){ console.log(err);}
-    console.log("loaded successfully -> " + res);
+    console.log("VALID DATA: " + validData.length + " records loaded");
     dataTransformation();
   });
 }
 
 function dataTransformation(){
+  //transformation to attain recent coin marketcap in a day
     stageData.aggregate([
       {
         $group: {
@@ -59,6 +62,7 @@ function dataTransformation(){
           data: {$max: "$data"},
           FactorConfigId: {$max: "$FactorConfigId"},
           createdAt: {$max: "$createdAt"},
+          createdAt_date: {$max: "$createdAt_date"},
           createdAt_time: {$max: "$createdAt_time"}
         }
       },
@@ -68,64 +72,15 @@ function dataTransformation(){
       if (err) {
         console.log(err); return;
       }
+      //create a collection of transformed data
       coinData.collection.insert(result, function(err, res) {
         if(err){ console.log(err);}
-        console.log("Loaded successfully -> " + result.length);
+        console.log("EXPECTED DATA: " + result.length + " records loaded");
+        //close mongoDB connection
         mongoose.connection.close();
       });
     });
 }
 
-
+//data flow starts here
 dataIngestion();
-
-/*
-//insert data into mongodb
-function insertMongo(){
-  MongoClient.connect(uri, function(err, client) {
-     if(err) {
-          console.log('Error occurred while connecting to MongoDB Atlas...\n',err);
-     }
-     console.log('Connected...');
-     var db = client.db("coindesk");
-     try
-       {
-         db.collection("stage").drop();
-         db.collection("stage").insertMany(validData);
-     } catch(e) { console.log(e); };
-     try
-       {
-          test = db.collection("stage").aggregate(
-           [
-             {$group: {_id: {$FactorConfigId: "$FactorConfigId", $createdAt_date: "$createdAt_date" }}},
-             {$sort: {id: 1}}
-           ]
-       );
-       console.log(test);
-     } catch(e) { console.log(e); };
-     //client.close();
-  });
-}
-
-*/
-
-
-
-
-
-/* console.log(
-moment("Thu Mar 08 2018 17:19:42").format("ddd mmm dd yyyy HH:mm:ss")
-);
-
-parts = rawData[i].createdAt.split(' ');
-date = parts[3] + parts[1] + parts[2] + parts[4] + parts[0];
-sourceData[i].createdAt = moment(moment(date, "YYYYMMMDDHH:mm:ss")).format('LLLL');
-console.log(rawData);
-
-var input = 'Thu Oct 11 2018 09:51:24 GMT-0400 (EDT)';
-var parts = input.split(' ');
-date = parts[3] + parts[1] + parts[2] + parts[4] + parts[0]
-date = moment(date, "YYYYMMMDDHH:mm:ss");
-result = moment(date).format('LLLL');
-console.log(result);
-*/

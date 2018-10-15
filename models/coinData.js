@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-
 const coincap = new Schema({
   id: {
     type: Number
@@ -25,31 +24,3 @@ const coincap = new Schema({
 
 const coinData = mongoose.model('coinCap', coincap);
 module.exports = coinData;
-
-/*
-
-module.exports = function(sequelize, DataTypes) {
-  return sequelize.define('validData', {
-    id: {
-      type: DataTypes.INTEGER(5),
-      allowNull: false,
-      primaryKey: true
-    },
-    data: {
-      type: DataTypes.INTEGER(5),
-      allowNull: true
-    },
-    FactorConfigId: {
-      type: DataTypes.INTEGER(5),
-      allowNull: true
-    },
-    createdAt: {
-      type: DataTypes.STRING,
-      allowNull: true
-    }
-  }, {
-    tableName: 'coinPrice'
-  });
-};
-
-*/
