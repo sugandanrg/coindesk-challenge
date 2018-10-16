@@ -89,15 +89,14 @@ function dataTransformation(){
                       		i += 1;
                         }
                         else{
-                        		  var temp= {
-                    						  id: res[i].id,
-                    						  data: res[i].data,
-                    						  FactorConfigId: res[i].FactorConfigId,
-                    						  createdAt: new Date(loopDate)
-                    						};
-                  						testData.push(temp);
-                              //console.log("else_else");
-                  						loopDate = addDate(loopDate,1);
+                          var temp= {
+                            id: res[i].id,
+                            data: res[i].data,
+                            FactorConfigId: res[i].FactorConfigId,
+                            createdAt: new Date(loopDate)
+                          };
+                          testData.push(temp);
+                          loopDate = addDate(loopDate,1);
                         }
                         if(loopDate >= maxDate){
                             console.log(testData.length);
