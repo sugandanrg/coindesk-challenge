@@ -1,7 +1,7 @@
 const csv = require('fast-csv');
 const moment = require('moment');
 const mongoose = require('mongoose');
-const async = require('async');
+var fs = require('fs');
 const stageData = require('./models/stageData.js');
 const coinData = require('./models/coinData.js');
 
@@ -10,7 +10,7 @@ var validData = [];
 var testData = [];
 //mongoDB connection string
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
-mongoose.Promise = global.Promise;
+//mongoose.Promise = global.Promise;
 
 function dataIngestion(){
   //CSV data ingestion
@@ -71,17 +71,18 @@ function dataTransformation(){
         stageData.distinct("FactorConfigId", function (err, pFactorConfigId ){
             if(err) { console.log(err); return; }
 
-            //res.forEach(function(pFactorConfigId){
-                for(var f = 0; f < pFactorConfigId.length; f++ ){
+                pFactorConfigId.forEach(function(pFactorConfigId){
+                //for(var f = 0; f < pFactorConfigId.length; f++ ){
                 stageData.find({
-                  FactorConfigId: pFactorConfigId[f]
+                  FactorConfigId: pFactorConfigId
                 }, function(err, res){
                 if(err) { console.log(err); return; }
                 //console.log("**********" + res[f].FactorConfigId + "**********");
                 var loopDate = minDate;
-                var i=0; var count = 0;
+                var i=0;
                 //if(FactorConfigId == 112){
-                while(getDateAlone(loopDate) <= getDateAlone(maxDate) && i < res.length - 1){
+                try{
+                while(getDateAlone(loopDate) <= getDateAlone(maxDate)){
                   //console.log("i " + i + " length " + res.length +  " createdDate " + res[i].createdAt +
                   //"  loopD " + getDateAlone(loopDate) + " maxD "+ getDateAlone(maxDate));
                         if(getDateAlone(res[i+1].createdAt) == getDateAlone(loopDate)){
@@ -97,16 +98,21 @@ function dataTransformation(){
                           };
                           testData.push(temp);
                           loopDate = addDate(loopDate,1);
-                        }
-                        if(loopDate >= maxDate){
-                            console.log(testData.length);
-                        /* console.log(testData.length);
-                        coinData.collection.insertMany(testData, function(err, res){
-                        if(err){ console.log(err); return; }
-                        //console.log(res);
-                      }); */
-                    }
-                  }
+                          }
+                      }
+                } catch (err) {
+                  //console.log(loopDate + ","+ maxDate);
+                  var temp= {
+                    id: res[i].id,
+                    data: res[i].data,
+                    FactorConfigId: res[i].FactorConfigId,
+                    createdAt: new Date(loopDate)
+                  };
+                  testData.push(temp);
+                  console.log(testData.length);
+                  };
+                  //console.log(err);
+
 
                     function getDateAlone(getDate){
                        var DateAlone = moment(String(getDate)).format('YYYY-MM-DD');
@@ -122,11 +128,11 @@ function dataTransformation(){
                       return Add_Date;
                     }
               });
-            }
+            });
           //});
     });
   });
-}
+};
 
 
 dataTransformation();
