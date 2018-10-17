@@ -1,144 +1,175 @@
 const csv = require('fast-csv');
 const moment = require('moment');
 const mongoose = require('mongoose');
-var fs = require('fs');
+const async = require('async');
 const stageData = require('./models/stageData.js');
 const coinData = require('./models/coinData.js');
-
-var sourceData = [];
-var validData = [];
-var testData = [];
+var items = 0;
 //mongoDB connection string
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
-//mongoose.Promise = global.Promise;
 
-function dataIngestion(){
-  //CSV data ingestion
-  csv
-   .fromPath('testData-1539286153057.csv', {headers: true})
-   .on('data', (data) =>
-     sourceData.push(data)
-   )
-   .on('end', () => {
-   console.log("RAW DATA: " + sourceData.length + " records loaded");
-   dataCleaning();
-   });
+function dataIngestion() {
+    //CSV data ingestion
+    var sourceData = [];
+    csv
+        .fromPath('testData-1539286153057.csv', {
+            headers: true
+        })
+        .on('data', (data) =>
+            sourceData.push(data)
+        )
+        .on('end', () => {
+            console.log("RAW DATA: " + sourceData.length + " records loaded");
+            dataCleaning(sourceData);
+        });
 }
 
-function dataCleaning(){
-  //filter invalid records
-  sourceData = sourceData.filter( i => i.data != '' && i.data > 0);
-  //separate date and time to faciltate
-   for (var i = 0; i < sourceData.length; i++) {
+function dataCleaning(sourceData) {
+    var validData = [];
+    //filter invalid records
+    sourceData = sourceData.filter(i => i.data != '' && i.data > 0);
+    //separate date and time to faciltate
+    for (var i = 0; i < sourceData.length; i++) {
         sourceData[i].id = Number(sourceData[i].id);
         sourceData[i].data = Number(sourceData[i].data);
         sourceData[i].FactorConfigId = Number(sourceData[i].FactorConfigId);
         sourceData[i].createdAt = new Date(sourceData[i].createdAt);
         validData[i] = sourceData[i];
-     }
-  createStageModel();
-}
-
-//Thu Oct 11 2018 09:51:24 GMT-0400 (EDT)
-
-function createStageModel(){
-  //connect to mongoDB
-  mongoose.connect(uri);
-  //create a collection of valid data
-  stageData.collection.insertMany(validData, function(err, res) {
-    if(err){ console.log(err);}
-    console.log("VALID DATA: " + validData.length + " records loaded");
-    //dataTransformation();
-  });
-}
-
-function dataTransformation(){
-  mongoose.connect(uri);
-  stageData.aggregate([
-    {
-      $group: {
-          _id: 'createdAt',
-          minDate: {$min: '$createdAt'},
-          maxDate: {$max: '$createdAt'}
-      }
     }
-  ], function(err, res){
-        if(err) { console.log(err); return; }
+    createStageModel(validData);
+}
 
+
+function createStageModel(validData) {
+    //connect to mongoDB
+    mongoose.connect(uri);
+    //create a collection of valid data
+    stageData.collection.insertMany(validData, function(err, res) {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        console.log("VALID DATA: " + validData.length + " records loaded");
+        dataTransformation(finalInsert);
+    });
+}
+
+
+function dataTransformation(callback) {
+    stageData.aggregate([{ //pick the min and max dates from collection
+        $group: {
+            _id: 'createdAt',
+            minDate: {
+                $min: '$createdAt'
+            },
+            maxDate: {
+                $max: '$createdAt'
+            }
+        }
+    }], function(err, res) {
+        if (err) {
+            console.log(err);
+            return;
+        }
         var minDate = moment(String(res[0].minDate)).format('YYYY-MM-DD HH:mm:ss');
         var maxDate = moment(String(res[0].maxDate)).format('YYYY-MM-DD HH:mm:ss');
-
-        stageData.distinct("FactorConfigId", function (err, pFactorConfigId ){
-            if(err) { console.log(err); return; }
-
-                pFactorConfigId.forEach(function(pFactorConfigId){
-                //for(var f = 0; f < pFactorConfigId.length; f++ ){
+        var finalData = [];
+        //get an array of distinct FactorConfigId values
+        stageData.distinct("FactorConfigId", function(err, pFactorConfigId) {
+            if (err) {
+                console.log(err);
+                return;
+            }
+            var n = pFactorConfigId.length;
+            var itemsProcessed = 0;
+            //loop into each distinct FactorConfigId
+            pFactorConfigId.forEach(function(pFactorConfigId) {
                 stageData.find({
-                  FactorConfigId: pFactorConfigId
-                }, function(err, res){
-                if(err) { console.log(err); return; }
-                //console.log("**********" + res[f].FactorConfigId + "**********");
-                var loopDate = minDate;
-                var i=0;
-                //if(FactorConfigId == 112){
-                try{
-                while(getDateAlone(loopDate) <= getDateAlone(maxDate)){
-                  //console.log("i " + i + " length " + res.length +  " createdDate " + res[i].createdAt +
-                  //"  loopD " + getDateAlone(loopDate) + " maxD "+ getDateAlone(maxDate));
-                        if(getDateAlone(res[i+1].createdAt) == getDateAlone(loopDate)){
-                      		loopDate = getDateTime(res[i+1].createdAt);
-                      		i += 1;
+                    FactorConfigId: pFactorConfigId
+                }, function(err, res) {
+                    if (err) {
+                        console.log(err);
+                        return;
+                    }
+                    var loopDate = minDate;
+                    var i = 0;
+                    try { //transformation logic
+                        while (getDateAlone(loopDate) <= getDateAlone(maxDate)) {
+                            if (getDateAlone(res[i + 1].createdAt) == getDateAlone(loopDate)) {
+                                loopDate = getDateTime(res[i + 1].createdAt);
+                                i += 1;
+                            } else {
+                                var temp = {
+                                    id: res[i].id,
+                                    data: res[i].data,
+                                    FactorConfigId: res[i].FactorConfigId,
+                                    createdAt: new Date(loopDate)
+                                };
+                                finalData.push(temp);
+                                loopDate = addDate(loopDate, 1);
+                            }
                         }
-                        else{
-                          var temp= {
+                    } catch (err) { //catch the last record and update into collection
+                        var temp = {//not the best practise - should revisit
                             id: res[i].id,
                             data: res[i].data,
                             FactorConfigId: res[i].FactorConfigId,
                             createdAt: new Date(loopDate)
-                          };
-                          testData.push(temp);
-                          loopDate = addDate(loopDate,1);
-                          }
-                      }
-                } catch (err) {
-                  //console.log(loopDate + ","+ maxDate);
-                  var temp= {
-                    id: res[i].id,
-                    data: res[i].data,
-                    FactorConfigId: res[i].FactorConfigId,
-                    createdAt: new Date(loopDate)
-                  };
-                  testData.push(temp);
-                  console.log(testData.length);
-                  };
-                  //console.log(err);
+                        };
+                        finalData.push(temp);
+                    };
 
-
-                    function getDateAlone(getDate){
-                       var DateAlone = moment(String(getDate)).format('YYYY-MM-DD');
-                       return DateAlone;
-                    }
-                    function getDateTime(getDate){
-                      var Date_Time = moment(String(getDate)).format('YYYY-MM-DD HH:mm:ss');
-                      return Date_Time;
+                    function getDateAlone(getDate) {
+                        var DateAlone = moment(String(getDate)).format('YYYY-MM-DD');
+                        return DateAlone;
                     }
 
-                    function addDate(getDate,i){
-                      var Add_Date = moment(String(moment(getDate).add(i, 'days'))).format('YYYY-MM-DD HH:mm:ss');
-                      return Add_Date;
+                    function getDateTime(getDate) {
+                        var Date_Time = moment(String(getDate)).format('YYYY-MM-DD HH:mm:ss');
+                        return Date_Time;
                     }
-              });
+
+                    function addDate(getDate, i) {
+                        var Add_Date = moment(String(moment(getDate).add(i, 'days'))).format('YYYY-MM-DD HH:mm:ss');
+                        return Add_Date;
+                    }
+                    //track all the calls to trigger return (functionc call)
+                    if (itemsProcessed == n) {
+                        items = items + itemsProcessed;
+                    };
+                    if ((itemsProcessed * n) == items) {
+                        finalInsert(finalData);
+                    };
+                });
+                itemsProcessed = itemsProcessed + 1;
             });
-          //});
+        });
     });
-  });
 };
 
 
-dataTransformation();
+dataIngestion();
+
+
+
+function finalInsert(finalData) {
+  //insert desired data into coinCap
+    coinData.collection.insertMany(finalData)
+        .then(function(res) {
+            console.log("DATA LOADED: " + finalData.length + " records");
+            //drop and close mongo connection
+            stageData.collection.drop()(function (err, res) {
+              if(err) { console.log(err); return;}
+              mongoose.connection.close();
+            }); //drop staged collection and close coonnection
+        });
+}
 
 
 /*
+
+avoid duplicate records in a day using aggregate
+
 function aadataTransformation(){
   //transformation to attain recent coin marketcap in a day
     stageData.aggregate([
