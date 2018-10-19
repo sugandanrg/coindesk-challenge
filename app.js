@@ -5,8 +5,10 @@ const async = require('async');
 const stageData = require('./models/stageData.js');
 const coinData = require('./models/coinData.js');
 var items = 0;
+
 //mongoDB connection string
 const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
+
 
 function dataIngestion() {
     //CSV data ingestion
@@ -23,6 +25,7 @@ function dataIngestion() {
             dataCleaning(sourceData);
         });
 }
+
 
 function dataCleaning(sourceData) {
     var validData = [];
@@ -56,7 +59,8 @@ function createStageModel(validData) {
 
 
 function dataTransformation(callback) {
-    stageData.aggregate([{ //pick the min and max dates from collection
+     mongoose.connect(uri);
+     stageData.aggregate([{ //pick the min and max dates from collection
         $group: {
             _id: 'createdAt',
             minDate: {
@@ -86,7 +90,9 @@ function dataTransformation(callback) {
             pFactorConfigId.forEach(function(pFactorConfigId) {
                 stageData.find({
                     FactorConfigId: pFactorConfigId
-                }, function(err, res) {
+                }).sort({
+                  createdAt: 1 //find the records pertaining to the ID and sort them
+                }).exec (function(err, res) {
                     if (err) {
                         console.log(err);
                         return;
@@ -108,30 +114,34 @@ function dataTransformation(callback) {
                                 finalData.push(temp);
                                 loopDate = addDate(loopDate, 1);
                             }
+                            if(i == res.length - 1 && //identify the last record and insert if date matches
+                                getDateAlone(loopDate) == getDateAlone(maxDate)){
+                              var temp = {
+                                  id: res[i].id,
+                                  data: res[i].data,
+                                  FactorConfigId: res[i].FactorConfigId,
+                                  createdAt: new Date(loopDate)
+                              };
+                              finalData.push(temp);
+                            }
                         }
-                    } catch (err) { //catch the last record and update into collection
-                        var temp = {//not the best practise - should revisit
-                            id: res[i].id,
-                            data: res[i].data,
-                            FactorConfigId: res[i].FactorConfigId,
-                            createdAt: new Date(loopDate)
-                        };
-                        finalData.push(temp);
+                    } catch (err) {
+                        console.log(err)
                     };
 
                     function getDateAlone(getDate) {
-                        var DateAlone = moment(String(getDate)).format('YYYY-MM-DD');
-                        return DateAlone;
+                        var dateAlone = moment(String(getDate)).format('YYYY-MM-DD');
+                        return dateAlone;
                     }
 
                     function getDateTime(getDate) {
-                        var Date_Time = moment(String(getDate)).format('YYYY-MM-DD HH:mm:ss');
-                        return Date_Time;
+                        var dateTime = moment(String(getDate)).format('YYYY-MM-DD HH:mm:ss');
+                        return dateTime;
                     }
 
                     function addDate(getDate, i) {
-                        var Add_Date = moment(String(moment(getDate).add(i, 'days'))).format('YYYY-MM-DD HH:mm:ss');
-                        return Add_Date;
+                        var addDate = moment(String(moment(getDate).add(i, 'days'))).format('YYYY-MM-DD HH:mm:ss');
+                        return addDate;
                     }
                     //track all the calls to trigger return (functionc call)
                     if (itemsProcessed == n) {
@@ -148,23 +158,20 @@ function dataTransformation(callback) {
 };
 
 
-dataIngestion();
-
-
-
 function finalInsert(finalData) {
   //insert desired data into coinCap
     coinData.collection.insertMany(finalData)
         .then(function(res) {
             console.log("DATA LOADED: " + finalData.length + " records");
-            //drop and close mongo connection
+            //drop staged collection and close connection
             stageData.collection.drop()(function (err, res) {
               if(err) { console.log(err); return;}
               mongoose.connection.close();
-            }); //drop staged collection and close coonnection
+            });
         });
 }
 
+dataIngestion();
 
 /*
 
