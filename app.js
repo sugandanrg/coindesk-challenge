@@ -1,14 +1,18 @@
 const csv = require('fast-csv');
 const moment = require('moment');
 const mongoose = require('mongoose');
-const async = require('async');
+var config = require('./config.js')
 const stageData = require('./models/stageData.js');
 const coinData = require('./models/coinData.js');
-var items = 0;
+
 
 //mongoDB connection string
-const uri = "mongodb+srv://sugandanrg:temp1234@cluster0-hd2ly.mongodb.net/coindesk";
+const uri = "mongodb+srv://"
+            + config.username + ":"
+            + config.pwd + "@cluster0-hd2ly.mongodb.net/"
+            + config.db
 
+var items = 0;
 
 function dataIngestion() {
     //CSV data ingestion
@@ -85,7 +89,7 @@ function dataTransformation(callback) {
                 return;
             }
             var n = pFactorConfigId.length;
-            var itemsProcessed = 0;
+            var itemsProcessed = 0; var id = 1;
             //loop into each distinct FactorConfigId
             pFactorConfigId.forEach(function(pFactorConfigId) {
                 stageData.find({
@@ -106,7 +110,7 @@ function dataTransformation(callback) {
                                 i += 1;
                             } else {
                                 var temp = {
-                                    id: res[i].id,
+                                    id:id++,
                                     data: res[i].data,
                                     FactorConfigId: res[i].FactorConfigId,
                                     createdAt: new Date(loopDate)
@@ -117,7 +121,7 @@ function dataTransformation(callback) {
                             if(i == res.length - 1 && //identify the last record and insert if date matches
                                 getDateAlone(loopDate) == getDateAlone(maxDate)){
                               var temp = {
-                                  id: res[i].id,
+                                  id: id++,
                                   data: res[i].data,
                                   FactorConfigId: res[i].FactorConfigId,
                                   createdAt: new Date(loopDate)
@@ -143,7 +147,8 @@ function dataTransformation(callback) {
                         var addDate = moment(String(moment(getDate).add(i, 'days'))).format('YYYY-MM-DD HH:mm:ss');
                         return addDate;
                     }
-                    //track all the calls to trigger return (functionc call)
+
+                    //track all the calls, to trigger return (function call)
                     if (itemsProcessed == n) {
                         items = items + itemsProcessed;
                     };
